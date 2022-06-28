@@ -1,3 +1,4 @@
+import os
 import socket
 import ssl
 
@@ -13,8 +14,8 @@ import ssl
 
         Optional features include:
         HTTP/1.1   DONE!
-        File URL's   FIXME
-        data scheme    TODO
+        File URL's   DONE!
+        data scheme    FIXME
         Body tags      TODO
         entities       TODO
         view-source    TODO
@@ -24,39 +25,41 @@ import ssl
 
 """
 
+
+
+def localFileRequest(shortUrl):
+
+    print("\nFile name: " + os.path.basename(os.path.normpath(shortUrl)))
+    print("File Path: " + shortUrl + "\n")
+
+    with open(shortUrl, 'r') as f:
+
+       
+        for line in f:
+            print(line, end='')
+        
+        f.close()
+
+
+
 # This function checks to see if it is a valid URL, it then connects to the correct socket, and formats what we see on the other end
-def request(url):
+def request(shortUrl, scheme):
 
-    scheme, url = url.split("://", 1)
-    assert scheme in ["http", "https", "file"], \
-        "Unknown scheme {}".format(scheme)
+    # scheme, url = url.split("://", 1)
+    # assert scheme in ["http", "https"], \
+    #     "Unknown scheme {}".format(scheme)
 
-    if scheme == "http" or "https":
-
-        if ("/" in url):
-            host, path = url.split("/", 1)
-            path = "/" + path
-        else:
-            host = url
-            path = '/'
-
-    if scheme == "file":
-        with open(url, 'r') as f:
-
-            print("File name: " + f.name + "\n")
-
-            for line in f:
-                print(line, end='')
-
-
-
-    # if ":" in host:
-    #     host, port = host.split(":", 1)
-    #     port = int(port)
-
-
-
+    if ("/" in shortUrl):
+      host, path = shortUrl.split("/", 1)
+      path = "/" + path
+    else:
+      host = shortUrl
+      path = '/'
     port = 80 if scheme == "http" else 443
+
+    if ":" in host:
+        host, port = host.split(":", 1)
+        port = int(port)
 
 
     # this command creates a socket
@@ -119,9 +122,20 @@ def show(body):
             print(c, end="")
 
 
+# FIXME: For some reason I have to have the file scheme first in the if block or eles it would not work 
 def load(url):
-    headers, body = request(url)
-    show(body)
+
+    scheme, shortUrl = url.split("://", 1)
+    assert scheme in ["http", "https", "file"], \
+        "Unknown schema {}".format(scheme)
+
+    if scheme == "file":
+        localFileRequest(shortUrl)
+    elif scheme == "http" or "https":
+        headers, body = request(shortUrl, scheme)
+        show(body)
+
+    
 
 if __name__ == "__main__":
     import sys
