@@ -18,21 +18,33 @@ def request(url):
     assert scheme in ["http", "https", "file"], \
         "Unknown scheme {}".format(scheme)
 
-    if ("/" in url):
-      host, path = url.split("/", 1)
-      path = "/" + path
-    else:
-      host = url
-      path = '/'
+    if scheme == "http" or "https":
+
+        if ("/" in url):
+            host, path = url.split("/", 1)
+            path = "/" + path
+        else:
+            host = url
+            path = '/'
+
+    if scheme == "file":
+        with open(url, 'r') as f:
+
+            print("File name: " + f.name + "\n")
+
+            for line in f:
+                print(line, end='')
+
+
+
+    # if ":" in host:
+    #     host, port = host.split(":", 1)
+    #     port = int(port)
 
 
 
     port = 80 if scheme == "http" else 443
 
-
-    if ":" in host:
-        host, port = host.split(":", 1)
-        port = int(port)
 
     # this command creates a socket
     s = socket.socket(
@@ -102,9 +114,3 @@ if __name__ == "__main__":
     import sys
     load(sys.argv[1])
 
-
-# import os 
-# from pathlib import Path
-
-# file_path = Path(r"C:\Users\matth\OneDrive\Desktop\Matthew__Niculae_Resume.docx")
-# open(file_path)
