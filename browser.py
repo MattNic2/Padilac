@@ -9,6 +9,19 @@ import ssl
         - Send an HTTP request to that host, including a Host header
         - Split the HTTP response into a status line, headers, and a body
         - Print the text (and not the tags) in the body
+
+
+        Optional features include:
+        HTTP/1.1   DONE!
+        File URL's   In progress 
+        data scheme    TODO
+        Body tags      TODO
+        entities       TODO
+        view-source    TODO
+        compression    TODO
+        redirects      TODO
+        caching        TODO
+
 """
 
 # This function checks to see if it is a valid URL, it then connects to the correct socket, and formats what we see on the other end
