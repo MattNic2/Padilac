@@ -15,7 +15,7 @@ import ssl
 def request(url):
 
     scheme, url = url.split("://", 1)
-    assert scheme in ["http", "https", "file"], \
+    assert scheme in ["http", "https"], \
         "Unknown scheme {}".format(scheme)
 
     if ("/" in url):
@@ -24,11 +24,7 @@ def request(url):
     else:
       host = url
       path = '/'
-
-
-
     port = 80 if scheme == "http" else 443
-
 
     if ":" in host:
         host, port = host.split(":", 1)
@@ -38,7 +34,7 @@ def request(url):
     s = socket.socket(
 
         # We have to establish our socket's, address family. 
-        family = socket.AF_INET,
+        family=socket.AF_INET,
 
         # Our socket has a type, and this type allows us to send arbitrary amounts of data.
         type=socket.SOCK_STREAM,
@@ -46,9 +42,9 @@ def request(url):
         # This tells us the protocol by which our sockets will be communicating over.
         proto=socket.IPPROTO_TCP,
     )
-    s.connect((host, 80))
+    s.connect((host, port))
 
-    if scheme == "https" :
+    if scheme == "https":
         ctx = ssl.create_default_context()
         s = ctx.wrap_socket(s, server_hostname=host)
 
@@ -101,10 +97,3 @@ def load(url):
 if __name__ == "__main__":
     import sys
     load(sys.argv[1])
-
-
-# import os 
-# from pathlib import Path
-
-# file_path = Path(r"C:\Users\matth\OneDrive\Desktop\Matthew__Niculae_Resume.docx")
-# open(file_path)
