@@ -5,6 +5,13 @@ from browser import request
 
 """
 This program uses the graphical toolkit named tkinter to open webpages in a GUI
+Optional Features:
+    - Line Breaks
+    - Mouse Wheel
+    - Emoji
+    - Resizing 
+    - Zoom
+
 """
 
 # Variables that describe the dimensions of the canvas
