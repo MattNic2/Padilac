@@ -32,30 +32,29 @@ style = "roman"
 
 
 # This method returns a list of tokens, a token is either a text object or a tag object
-def lex(body):
-    out = []
+def parse(self):
     text = ""
     in_tag = False
     # iterates through the entire webpage (c is character)
-    for c in body:
+    for c in self.body:
         if c == "<":
             # When we come across an opening tag, in_tag evaluates to true, 
             # If there is anything in text string, append it to the text object, then clear text
             in_Tag = True
-            if text: out.append(Text(text))
+            if text: self.add_text(text)
             text = ""
         elif c == ">":
             # When we come across a close tag, switch in_tag to false. This will store the contents of 
             # the tag in the tag object
             in_tag = False
-            out.append(Tag(text))
+            self.add_tag(text)
             text = ""
         else:
             text += c
     # If its just regular text, return it to the text object
     if not in_tag and text:
-        out.append(Text(text))
-    return out
+        self.add_text(text)
+    return self.finish()
 
 FONTS = {}
 
@@ -69,20 +68,27 @@ def get_font(size, weight, slant):
 
 # These two objects make it so we could differentiate between text and tag objects 
 # when parsing through the document
-
+# Text is being read as a node.
 class Text:
-    def __init__(self, text):
+    def __init__(self, text, parent):
         self.text = text
+        self.children = []
+        self.parent = parent
 
     def __repr__(self):
         return "Text('{}')".format(self.text)
 
-class Tag:
-    def __init__(self, tag):
+class Element:
+    def __init__(self, tag, attributes, parent):
         self.tag = tag
+        self.attributes = attributes
+        self.children = []
+        self.parent = parent
 
     def __repr__(self):
         return "Tag('{}')".format(self.tag)
+
+
 
 
 
@@ -90,6 +96,7 @@ class Tag:
 # Cursor_x and y point to where the next text is going to go.
 # It takes in tokens as an arg (text or tag) and loops over them
 class Layout:
+
     def __init__(self, tokens):
         self.tokens = tokens
         self.display_list = []
@@ -127,6 +134,23 @@ class Layout:
         elif tok.tag == "/big":
             self.size -= 4
 
+    def open_tag(self, tag):
+        if tag == "i":
+            self.style = "italic"
+    def clos_tag(self, tag):
+        if tag == "i":
+            self.style = "roman"
+
+    def recurse(self, tree):
+        if isinstance(tree, Text):
+            self.text(tree)
+        else:
+            self.open_tag(tree.tag)
+            for child in tree.children:
+                self.recurse(child)
+            self.close(tree.tag)
+
+
     def text(self, tok):
         font = get_font(self.size, self.weight, self.style)
         # 1.) Measure the width of the text and store it in w
@@ -159,9 +183,89 @@ class Layout:
         self.cursor_y = baseline + 1.25 * max_descent
         #breakpoint("final_y", self.cursor_y);
 
+SELF_CLOSING_TAGS = [
+    "area", "base", "br", "col", "embed", "hr", "img", "input",
+    "link", "meta", "param", "source", "track", "wbr",
+]
+
+
+class HTMLParser:
+
+    def __init__(self, body):
+        self.body = body
+        self.unfinished = []
+
+    HEAD_TAGS = [
+        "base", "basefont", "bgsound", "noscript",
+        "link", "meta", "title", "style", "script",
+    ]
+
+    def implicit_tags(self, tag):
+        while True:
+            open_tags = [node.tag for node in self.unfinished]
+            if open_tags == [] and tag != "html":
+                self.add_tag("html")
+            elif open_tags == ["html"] \
+                 and tag not in ["head", "body", "/html"]:
+                if tag in self.HEAD_TAGS:
+                    self.add_tag("head")
+                else:
+                    self.add_tag("body")
+            elif open_tags == ["html", "head"] and \
+                 tag not in ["/head"] + self.HEAD_TAGS:
+                self.add_tag("/head")
+            else:
+                break
+
+    def add_text(self, text):
+        if text.isspace(): return
+        self.implicit_tags(None)
+        parent = self.unfinished[-1]
+        node = Text(text, parent)
+        parent.children.append(node)
+
+    def add_tag(self, tag):
+        tag, attributes = self.get_attributes(tag)
+
+        if tag.startswith("/"):
+            if tag.startswith("!"): return
+            if len(self.unfinished) == 1: return
+            self.implicit_tags(tag)
+            node = self.unfinished.pop()
+            parent = self.unfinished[-1]
+            parent.children.append(node)
+        elif tag in self.SELF_CLOSING_TAGS:
+            parent = self.unfinished[-1]
+            node = Element(tag, parent)
+            parent.children.append(node)
+        else:
+            parent = self.unfinished[-1] if self.unfinished else None
+            node = Element(tag, parent)
+            self.unfinished.append(node)
+
+    def get_attributes(self, text):
+        parts = text.split()
+        tag = parts[0].lower()
+        attributes = {}
+        for attrpair in parts[1:]:
+            if "=" in attrpair:
+                key, value = attrpair.split("=", 1)
+                attributes[key.lower()] = value
+                if len(value) > 2 and value[0] in ["'", "\""]:
+                    value = value[1:-1]
+            else:
+                attributes[attrpair.lower()] = ""
+        return tag, attributes
 
     
-
+    def finish(self):
+        if len(self.unfinished) == 0:
+            self.add_tag("html")
+        while len(self.unfinished) > 1:
+            node = self.unfinished.pop()
+            parent = self.unfinished[-1]
+            parent.children.append(node)
+        return self.unfinished.pop()
 
 
 # This object organizes the window, canvas, and other things
@@ -186,8 +290,8 @@ class Browser:
     # calls draw to use the display list to draw it on the canvas.
     def load(self, url):
         headers, body = request(url)
-        tokens = lex(body)
-        self.display_list = Layout(tokens).display_list
+        self.nodes = HTMLParser(body).parse()
+        self.display_list = Layout(self.nodes).display_list
         self.draw()
 
     # The draw function loops through the display list and draws each character.
