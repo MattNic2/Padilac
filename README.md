@@ -19,8 +19,6 @@ The graphics library that is used is python's tkinter. Display options include:
  - Emojis
  - Resizing
  - Zooming
-
+ 
 This browser uses a parser to convert HTML tokens into a tree. Tag elements and attributes are recognized and parsed. There are also 
-limited fixes for malformed documents and a recursive algorithm to lay out and HTML tree for error handling.
-
-
+limited fixes for malformed documents. A recursive algorithm is used to lay out an HTML tree for error handling.
