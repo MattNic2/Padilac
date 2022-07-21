@@ -6,6 +6,7 @@ from browser import request
 
 
 
+
 """
 This program uses the graphical toolkit named tkinter to open webpages in a GUI
 Optional Features:
@@ -30,32 +31,6 @@ SCROLL_STEP = 100
 weight = "normal"
 style = "roman"
 
-
-# This method returns a list of tokens, a token is either a text object or a tag object
-def parse(self):
-    text = ""
-    in_tag = False
-    # iterates through the entire webpage (c is character)
-    for c in self.body:
-        if c == "<":
-            # When we come across an opening tag, in_tag evaluates to true, 
-            # If there is anything in text string, append it to the text object, then clear text
-            in_Tag = True
-            if text: self.add_text(text)
-            text = ""
-        elif c == ">":
-            # When we come across a close tag, switch in_tag to false. This will store the contents of 
-            # the tag in the tag object
-            in_tag = False
-            self.add_tag(text)
-            text = ""
-        else:
-            text += c
-    # If its just regular text, return it to the text object
-    if not in_tag and text:
-        self.add_text(text)
-    return self.finish()
-
 FONTS = {}
 
 def get_font(size, weight, slant):
@@ -66,9 +41,12 @@ def get_font(size, weight, slant):
     return FONTS[key]
 
 
-# These two objects make it so we could differentiate between text and tag objects 
-# when parsing through the document
-# Text is being read as a node.
+
+#################################################################################################
+# These two classes construct the text and element nodes. Text nodes do not actually contain any 
+# children and the element class has an added attributes type. 
+#####################################################################################################
+
 class Text:
     def __init__(self, text, parent):
         self.text = text
@@ -90,15 +68,13 @@ class Element:
 
 
 
-
-
-# This object controls the spacing of characters within the document.
-# Cursor_x and y point to where the next text is going to go.
-# It takes in tokens as an arg (text or tag) and loops over them
+##################################################################################################################
+# The layout class controls the spacing of characters within the document. Cursor_x and y correspond with where 
+# the next text characters are going to go. Recurse takes in nodes as input and outputs the text onto the screen.
+#####################################################################################################################
 class Layout:
 
-    def __init__(self, tokens):
-        self.tokens = tokens
+    def __init__(self, tree):
         self.display_list = []
 
         self.cursor_x = HSTEP
@@ -108,38 +84,12 @@ class Layout:
         self.size = 16
 
         self.line = []
-        for tok in tokens:
-            self.token(tok)
-        self.flush()
+        self.recurse(tree);
 
-    # Weight and style variables must change when we see tags with different types.
-    # isinstance checks to see if there is a given tag within the text
-    def token(self, tok):
-        if isinstance(tok, Text):
-            self.text(tok)
-        elif tok.tag == "i":
-            style = "italic"
-        elif tok.tag == "/i":
-            style = "roman"
-        elif tok.tag == "b":
-            weight = "bold"
-        elif tok.tag == "/b":
-            weight = "normal"
-        elif tok.tag == "small":
-            self.size -= 2
-        elif tok.tag == "/small":
-            self.size += 2
-        elif tok.tag == "big":
-            self.size += 4
-        elif tok.tag == "/big":
-            self.size -= 4
-
-    def open_tag(self, tag):
-        if tag == "i":
-            self.style = "italic"
-    def clos_tag(self, tag):
-        if tag == "i":
-            self.style = "roman"
+    ################################################################################################################
+    # Layout object can use this function instead of tokens to iterate over the body of the document. These next
+    # three methods are used together for this process. All opentag cases are covered in open_tag and same for close_tag
+    # ################################################################################################################
 
     def recurse(self, tree):
         if isinstance(tree, Text):
@@ -148,8 +98,32 @@ class Layout:
             self.open_tag(tree.tag)
             for child in tree.children:
                 self.recurse(child)
-            self.close(tree.tag)
+            self.close_tag(tree.tag)
 
+    def open_tag(self, tag):
+        if tag == "i":
+            self.style = "italic"
+        elif tag == "b":
+            self.weight = "bold"
+        elif tag == "small":
+            self.size -= 2
+        elif tag == "big":
+            self.size += 4
+        elif tag == "br":
+            self.flush()
+
+    def close_tag(self, tag):
+        if tag == "i":
+            self.style = "roman"
+        elif tag == "b":
+            self.weight = "normal"
+        elif tag == "small":
+            self.size += 2
+        elif tag == "big":
+            self.size -= 4
+        elif tag == "p":
+            self.flush()
+            self.cursor_y += VSTEP
 
     def text(self, tok):
         font = get_font(self.size, self.weight, self.style)
@@ -166,29 +140,23 @@ class Layout:
 
     def flush(self):
         if not self.line: return
-        #breakpoint("initial_y", self.cursor_y, self.line);
         metrics = [font.metrics() for x, word, font in self.line]
-        #breakpoint("metrics", metrics)
         max_ascent = max([metric["ascent"] for metric in metrics])
         baseline = self.cursor_y + 1.25 * max_ascent
-       # breakpoint("max_ascent", max_ascent);
         for x, word, font in self.line:
             y = baseline - font.metrics("ascent")
             self.display_list.append((x, y, word, font))
-            #breakpoint("aligned", self.display_list);
         self.cursor_x = HSTEP
         self.line = []
         max_descent = max([metric["descent"] for metric in metrics])
-        #breakpoint("max_descent", max_descent);
         self.cursor_y = baseline + 1.25 * max_descent
-        #breakpoint("final_y", self.cursor_y);
-
-SELF_CLOSING_TAGS = [
-    "area", "base", "br", "col", "embed", "hr", "img", "input",
-    "link", "meta", "param", "source", "track", "wbr",
-]
 
 
+#########################################################################################################################
+# The HTML parser class iterates through the document and creates a tree of element and text nodes. These nodes are
+# tracked on a list called unfinish. Once tags are completed, these nodes are removed from the list. These nodes are passed
+# on to the Layout function to be interpreted and displayed.
+#########################################################################################################################
 class HTMLParser:
 
     def __init__(self, body):
@@ -200,64 +168,120 @@ class HTMLParser:
         "link", "meta", "title", "style", "script",
     ]
 
+    SELF_CLOSING_TAGS = [
+    "area", "base", "br", "col", "embed", "hr", "img", "input",
+    "link", "meta", "param", "source", "track", "wbr",
+    ]      
+
+    ###################################################################################################################
+    # This method iterates over the request body character by character. It will call add_tag when it comes across a tag object
+    # and add_text when it comes across a text object. Once it is done iterating, it calls finish() to complete the 
+    # unfinish list.
+    ###################################################################################################################
+    def parse(self):
+        text = ""
+        in_tag = False
+        for c in self.body:
+            if c == "<":
+                in_Tag = True
+                if text: self.add_text(text)
+                text = ""
+            elif c == ">":
+                in_tag = False
+                self.add_tag(text)
+                text = ""
+            else:
+                text += c
+
+        if not in_tag and text:
+            self.add_text(text)
+        return self.finish()
+
+
+    ###################################################################################################################
+    # this function will add the text as a child of it's parent node. IE the last node in the unfinish list. The reason
+    # it is added as a child and not as a member of the unfinish list is because it does not require closing. Closing is 
+    # required for tags and this way makes it easier to keep track of the tree.
+    ####################################################################################################################
+    def add_text(self, text):
+        if text.isspace(): return     # ignore spaces.
+        self.implicit_tags(None) 
+
+        parent = self.unfinished[-1] 
+        node = Text(text, parent)
+        parent.children.append(node)
+
+
+    ########################################################################################################################
+    # add_tag has a couple different options. If it is as opening tag, it is simply added to the unfinish list with the node 
+    # before it as a parent. If it's a close tag, it removes it's matching unfinished node and adds it as a child of it's parent.
+    # edge case handlers are in place for the first tag of a document and the last tag. If there is a self-closing tag, we need to
+    # just add it as a child because it is already closed. Check for attributes at the top
+    #######################################################################################################################
+
+    def add_tag(self, tag):
+        tag, attributes = self.get_attributes(tag)
+        if tag.startswith("!"): return       # Throw out comment tags and Doctype
+        self.implicit_tags(tag)
+
+        if tag.startswith("/"):
+            if len(self.unfinished) == 1: return   
+            node = self.unfinished.pop()
+            parent = self.unfinished[-1]
+            parent.children.append(node)
+        elif tag in self.SELF_CLOSING_TAGS:
+            parent = self.unfinished[-1]
+            node = Element(tag, attributes, parent)
+            parent.children.append(node)
+        else:
+            parent = self.unfinished[-1] if self.unfinished else None
+            node = Element(tag, attributes, parent)
+            self.unfinished.append(node)
+
+
+
     def implicit_tags(self, tag):
         while True:
             open_tags = [node.tag for node in self.unfinished]
             if open_tags == [] and tag != "html":
                 self.add_tag("html")
             elif open_tags == ["html"] \
-                 and tag not in ["head", "body", "/html"]:
+                    and tag not in ["head", "body", "/html"]:
                 if tag in self.HEAD_TAGS:
                     self.add_tag("head")
                 else:
                     self.add_tag("body")
             elif open_tags == ["html", "head"] and \
-                 tag not in ["/head"] + self.HEAD_TAGS:
+                    tag not in ["/head"] + self.HEAD_TAGS:
                 self.add_tag("/head")
             else:
                 break
 
-    def add_text(self, text):
-        if text.isspace(): return
-        self.implicit_tags(None)
-        parent = self.unfinished[-1]
-        node = Text(text, parent)
-        parent.children.append(node)
 
-    def add_tag(self, tag):
-        tag, attributes = self.get_attributes(tag)
-
-        if tag.startswith("/"):
-            if tag.startswith("!"): return
-            if len(self.unfinished) == 1: return
-            self.implicit_tags(tag)
-            node = self.unfinished.pop()
-            parent = self.unfinished[-1]
-            parent.children.append(node)
-        elif tag in self.SELF_CLOSING_TAGS:
-            parent = self.unfinished[-1]
-            node = Element(tag, parent)
-            parent.children.append(node)
-        else:
-            parent = self.unfinished[-1] if self.unfinished else None
-            node = Element(tag, parent)
-            self.unfinished.append(node)
+    ##################################################################################################
+    # This function breaks apart the tags from attributes on white space. The first string will be the tag
+    # and everything that follows will be attributes. Attributes are split by "=" into key and value pairings.
+    # Attributes are keys and values are values. 
+    #######################################################################################################
 
     def get_attributes(self, text):
         parts = text.split()
-        tag = parts[0].lower()
+        tag = parts[0].lower()       # tags are case sensitive
         attributes = {}
         for attrpair in parts[1:]:
-            if "=" in attrpair:
+            if "=" in attrpair:                        # Quotes need to be stripped out.
                 key, value = attrpair.split("=", 1)
-                attributes[key.lower()] = value
+                attributes[key.lower()] = value        # attributes are case sensitive
                 if len(value) > 2 and value[0] in ["'", "\""]:
                     value = value[1:-1]
             else:
                 attributes[attrpair.lower()] = ""
         return tag, attributes
 
-    
+    ################################################################################################
+    # finish turns the incomplete tree to a complete one by finishing any unfinished nodes.
+    # If we have only one node left, it simply pops it and the unfinish list is emptied. 
+    ###############################################################################################
     def finish(self):
         if len(self.unfinished) == 0:
             self.add_tag("html")
@@ -278,7 +302,6 @@ class Browser:
             width=WIDTH,
             height=HEIGHT
         )
-
         self.canvas.pack()
 
         self.scroll = 0
