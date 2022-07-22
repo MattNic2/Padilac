@@ -125,19 +125,25 @@ class Layout:
             self.flush()
             self.cursor_y += VSTEP
 
-    def text(self, tok):
+    ############################################################################################################
+    # This function will first measure the width of the text and store in w. The if statement checks to see if 
+    # the word exceeds the length of the page, and if it does it calls flush to start a new line. If it isn't
+    # it just outputs the contents of the text node onto the line
+    ############################################################################################################
+
+    def text(self, node):
         font = get_font(self.size, self.weight, self.style)
-        # 1.) Measure the width of the text and store it in w
-        # 2.) cursor_x is where we draw the text, so we check if cursor_x + w is past the width of the page
-        # 3.) 
-        for word in tok.text.split():
+        for word in node.text.split():
             w = font.measure(word)
             if self.cursor_x + w > WIDTH - HSTEP:
                 self.flush()
             self.line.append((self.cursor_x, word, font))
-            # This adds the spaces between words, it was taken out by .split()
             self.cursor_x += w + font.measure(" ")
 
+    ####################################################################################################################
+    # This flush function has three jobs: it aligns words along the line, it adds all those words to the display list and
+    # it updates the cursor_x and cursor_y fields.
+    ####################################################################################################################
     def flush(self):
         if not self.line: return
         metrics = [font.metrics() for x, word, font in self.line]
@@ -238,8 +244,11 @@ class HTMLParser:
             node = Element(tag, attributes, parent)
             self.unfinished.append(node)
 
-
-
+    #########################################################################################################################
+    # We want the browser to have functionality for html documents that omit certain tags. This function checks to see if the 
+    # document has all the necessary tags to work and if it doesn't then it will go in and add them. 
+    #########################################################################################################################
+    
     def implicit_tags(self, tag):
         while True:
             open_tags = [node.tag for node in self.unfinished]
